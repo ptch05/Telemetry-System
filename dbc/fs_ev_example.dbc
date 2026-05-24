@@ -1,0 +1,78 @@
+VERSION "FS_EV_EXAMPLE"
+
+NS_ :
+    NS_DESC_
+    CM_
+    BA_DEF_
+    BA_
+    VAL_
+    CAT_DEF_
+    CAT_
+    FILTER
+    BA_DEF_DEF_
+    EV_DATA_
+    ENVVAR_DATA_
+    SGTYPE_
+    SGTYPE_VAL_
+    BA_DEF_SGTYPE_
+    BA_SGTYPE_
+    SIG_TYPE_REF_
+    VAL_TABLE_
+    SIG_GROUP_
+    SIG_VALTYPE_
+    SIGTYPE_VALTYPE_
+    BO_TX_BU_
+    BA_DEF_REL_
+    BA_REL_
+    BA_DEF_DEF_REL_
+    BU_SG_REL_
+    BU_EV_REL_
+    BU_BO_REL_
+    SG_MUL_VAL_
+
+BS_:
+
+BU_: LOGGER BMS INVERTER DASH VEHICLE_DYNAMICS
+
+BO_ 256 BMS_Status: 8 BMS
+ SG_ BMS_StateOfCharge : 0|8@1+ (0.5,0) [0|100] "%" LOGGER,DASH
+ SG_ BMS_AMSState : 8|8@1+ (1,0) [0|3] "state" LOGGER,DASH
+ SG_ BMS_MaxCellTemp : 16|8@1+ (0.5,0) [0|100] "degC" LOGGER,DASH
+ SG_ BMS_MinCellVoltage : 24|16@1+ (0.001,0) [0|5] "V" LOGGER,DASH
+ SG_ BMS_MaxCellVoltage : 40|16@1+ (0.001,0) [0|5] "V" LOGGER,DASH
+
+BO_ 257 BMS_TractiveSystem: 8 BMS
+ SG_ BMS_TSVoltage : 0|16@1+ (0.1,0) [0|600] "V" LOGGER,DASH
+ SG_ BMS_TSCurrent : 16|16@1- (0.1,0) [-500|500] "A" LOGGER,DASH
+ SG_ BMS_CellDeltaMv : 32|16@1+ (1,0) [0|500] "mV" LOGGER,DASH
+
+BO_ 512 INV_Status: 8 INVERTER
+ SG_ INV_MotorRPM : 0|16@1+ (1,0) [0|20000] "rpm" LOGGER,DASH
+ SG_ INV_TorqueRequest : 16|16@1+ (0.1,0) [0|300] "Nm" LOGGER,DASH
+ SG_ INV_TorqueActual : 32|16@1+ (0.1,0) [0|300] "Nm" LOGGER,DASH
+ SG_ INV_State : 48|8@1+ (1,0) [0|10] "state" LOGGER,DASH
+ SG_ INV_Derating : 56|1@1+ (1,0) [0|1] "bool" LOGGER,DASH
+
+BO_ 513 INV_Temperatures: 8 INVERTER
+ SG_ INV_InverterTemp : 0|16@1+ (0.1,0) [0|150] "degC" LOGGER,DASH
+ SG_ INV_MotorTemp : 16|16@1+ (0.1,0) [0|150] "degC" LOGGER,DASH
+ SG_ INV_DCBusVoltage : 32|16@1+ (0.1,0) [0|600] "V" LOGGER,DASH
+
+BO_ 768 DRV_Inputs: 8 DASH
+ SG_ DRV_APPS : 0|16@1+ (0.1,0) [0|100] "%" LOGGER,DASH
+ SG_ DRV_BrakePressureFront : 16|16@1+ (0.1,0) [0|200] "bar" LOGGER,DASH
+ SG_ DRV_BrakePressureRear : 32|16@1+ (0.1,0) [0|200] "bar" LOGGER,DASH
+ SG_ DRV_SteeringAngle : 48|16@1- (0.1,0) [-180|180] "deg" LOGGER,DASH
+
+BO_ 1024 VEH_Dynamics: 8 VEHICLE_DYNAMICS
+ SG_ VEH_Speed : 0|16@1+ (0.1,0) [0|200] "kmh" LOGGER,DASH
+ SG_ VEH_YawRate : 16|16@1- (0.1,0) [-300|300] "deg_s" LOGGER,DASH
+ SG_ VEH_LatG : 32|16@1- (0.001,0) [-5|5] "g" LOGGER,DASH
+ SG_ VEH_LongG : 48|16@1- (0.001,0) [-5|5] "g" LOGGER,DASH
+
+BO_ 1280 LOGGER_Health: 8 LOGGER
+ SG_ LOGGER_StorageFreeGb : 0|16@1+ (0.01,0) [0|512] "GB" DASH
+ SG_ LOGGER_CPUTemp : 16|16@1+ (0.1,0) [0|120] "degC" DASH
+ SG_ LOGGER_CANBusLoad : 32|8@1+ (0.5,0) [0|100] "%" DASH
+ SG_ LOGGER_DroppedFrames : 40|16@1+ (1,0) [0|65535] "count" DASH
+ SG_ LOGGER_Recording : 56|1@1+ (1,0) [0|1] "bool" DASH

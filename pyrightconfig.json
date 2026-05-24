@@ -1,0 +1,8 @@
+{
+  "include": ["backend/app", "backend/tests", "tools"],
+  "exclude": ["**/__pycache__", "backend/.venv", "frontend", "node_modules"],
+  "venvPath": "backend",
+  "venv": ".venv",
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "basic"
+}
