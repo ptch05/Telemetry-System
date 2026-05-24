@@ -5,12 +5,11 @@ Real-time telemetry platform for a Formula Student electric race car. Streams si
 ## Screenshots
 
 ### Overview
-
-![Overview dashboard](images/overview.png)
+<img width="3024" height="1822" alt="image" src="https://github.com/user-attachments/assets/45898c73-c657-4b55-89ff-6154d3a6eb8a" />
 
 ### Vehicle dynamics
 
-![Vehicle dynamics dashboard](images/dynamics.png)
+<img width="3024" height="1820" alt="image" src="https://github.com/user-attachments/assets/7de03583-b84a-4e2d-9516-113ec0fd2e51" />
 
 ---
 
