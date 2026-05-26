@@ -4,7 +4,7 @@ import { replayWsUrl } from "@/lib/config";
 import { isMockMode, recordingLabel } from "@/lib/status";
 import { getConnectionDisplay } from "@/lib/telemetry";
 import { buildAlerts, buildSignalRows, toChartPoint } from "@/lib/telemetry";
-import type { ConnectionState, TelemetryFrame } from "@/lib/types";
+import type { ConnectionState, HealthStatus, TelemetryFrame } from "@/lib/types";
 import { useTelemetry } from "@/hooks/useTelemetry";
 import type { DashboardContextValue } from "@/features/dashboard/context";
 
@@ -14,6 +14,7 @@ export interface DashboardState {
   phase: DashboardPhase;
   status: ConnectionState;
   error: string | null;
+  health: HealthStatus | null;
   paused: boolean;
   togglePause: () => void;
   isReplay: boolean;
@@ -26,7 +27,13 @@ function resolvePhase(
   status: ConnectionState,
 ): DashboardPhase {
   if (frame) return "ready";
-  if (status === "live") return "connecting";
+  if (
+    status === "live" ||
+    status === "connecting" ||
+    status === "reconnecting"
+  ) {
+    return "connecting";
+  }
   return "waiting";
 }
 
@@ -95,6 +102,7 @@ export function useDashboard(): DashboardState {
     phase,
     status: telemetry.status,
     error: telemetry.error,
+    health: telemetry.health,
     paused,
     togglePause,
     isReplay,

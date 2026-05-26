@@ -19,7 +19,7 @@ async def stream_run_replay(
     default_hz: float,
 ) -> None:
     await websocket.accept()
-    detail = recorder.get_run(run_id)
+    detail = await recorder.get_run(run_id)
     if detail is None:
         await websocket.close(code=RUN_NOT_FOUND_CODE, reason="Run not found")
         return
@@ -28,7 +28,7 @@ async def stream_run_replay(
     interval = 1.0 / max(float(replay_hz), 0.1)
 
     try:
-        for frame in recorder.iter_frames(run_id):
+        async for frame in recorder.aiter_frames(run_id):
             await websocket.send_text(frame.model_dump_json())
             await asyncio.sleep(interval)
         await websocket.close(code=REPLAY_COMPLETE_CODE, reason="Replay complete")

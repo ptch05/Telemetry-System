@@ -11,6 +11,7 @@ export default function App() {
         phase={dashboard.phase}
         status={dashboard.status}
         error={dashboard.error}
+        health={dashboard.health}
         isReplay={dashboard.isReplay}
         onReturnToLive={dashboard.returnToLive}
       />

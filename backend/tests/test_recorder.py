@@ -1,15 +1,28 @@
-from pathlib import Path
-
 import pytest
+from app.core.config import Settings
+from app.core.state import build_app_state
 from app.services.recorder import RunRecorder
 from app.services.simulator import TelemetrySimulator
 
 
-def test_recording_creates_jsonl_and_metadata(tmp_path: Path) -> None:
-    recorder = RunRecorder(tmp_path, sample_hz=10)
-    sim = TelemetrySimulator(seed=1)
+@pytest.fixture()
+async def recorder(tmp_run_dir):
+    cfg = Settings(
+        run_data_dir=tmp_run_dir,
+        database_url=f"sqlite+aiosqlite:///{tmp_run_dir.parent / 'recorder.db'}",
+        storage_backend="local",
+    )
+    state = await build_app_state(cfg)
+    yield state.recorder
+    await state.engine.dispose()
 
-    started = recorder.start(
+
+@pytest.mark.asyncio
+async def test_recording_creates_jsonl_and_metadata(recorder: RunRecorder, tmp_run_dir) -> None:
+    sim = TelemetrySimulator(seed=1)
+    active_dir = recorder.active_dir
+
+    started = await recorder.start(
         run_id="RUN-TEST-001",
         metadata={"driver": "A. Driver", "event_type": "test", "notes": "unit test"},
     )
@@ -19,22 +32,27 @@ def test_recording_creates_jsonl_and_metadata(tmp_path: Path) -> None:
     for _ in range(5):
         recorder.write(sim.next_frame())
 
-    stopped = recorder.stop()
+    stopped = await recorder.stop()
     assert stopped.recording is False
     assert stopped.frame_count == 5
 
-    jsonl = tmp_path / "RUN-TEST-001.jsonl"
-    meta = tmp_path / "RUN-TEST-001.meta.json"
-    assert jsonl.exists()
-    assert meta.exists()
-    assert len(jsonl.read_text(encoding="utf-8").strip().splitlines()) == 5
+    jsonl = active_dir / "RUN-TEST-001.jsonl"
+    meta = active_dir / "RUN-TEST-001.meta.json"
+    assert not jsonl.exists()
+    assert not meta.exists()
 
-    detail = recorder.get_run("RUN-TEST-001")
+    completed_jsonl = tmp_run_dir / "RUN-TEST-001.jsonl"
+    completed_meta = tmp_run_dir / "RUN-TEST-001.meta.json"
+    assert completed_jsonl.exists()
+    assert completed_meta.exists()
+    assert len(completed_jsonl.read_text(encoding="utf-8").strip().splitlines()) == 5
+
+    detail = await recorder.get_run("RUN-TEST-001")
     assert detail is not None
     assert detail.frame_count == 5
 
 
-def test_invalid_run_id_raises(tmp_path: Path) -> None:
-    recorder = RunRecorder(tmp_path)
+@pytest.mark.asyncio
+async def test_invalid_run_id_raises(recorder: RunRecorder) -> None:
     with pytest.raises(ValueError):
-        recorder.get_run("../../etc/passwd")
+        await recorder.get_run("../../etc/passwd")

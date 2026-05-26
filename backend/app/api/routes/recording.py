@@ -20,16 +20,16 @@ def recording_status(state: AppState = Depends(get_state)) -> RecordingStatusRes
 
 
 @router.post("/start", response_model=RecordingStartResponse)
-def start_recording(
+async def start_recording(
     request: RecordingRequest,
     state: AppState = Depends(get_state),
 ) -> RecordingStartResponse:
     if request.run_id:
         require_run_id(request.run_id)
     metadata = request.model_dump(exclude={"run_id"}, exclude_none=True)
-    return state.telemetry.start_recording(run_id=request.run_id, metadata=metadata)
+    return await state.telemetry.start_recording_async(run_id=request.run_id, metadata=metadata)
 
 
 @router.post("/stop", response_model=RecordingStopResponse)
-def stop_recording(state: AppState = Depends(get_state)) -> RecordingStopResponse:
-    return state.telemetry.stop_recording()
+async def stop_recording(state: AppState = Depends(get_state)) -> RecordingStopResponse:
+    return await state.telemetry.stop_recording_async()

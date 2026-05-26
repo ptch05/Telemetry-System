@@ -38,6 +38,7 @@ export function useTelemetry(paused: boolean, wsUrlOverride?: string) {
     let cancelled = false;
     setFrames([]);
     setError(null);
+    setStatus("connecting");
 
     const clearReconnectTimer = () => {
       if (reconnectTimerRef.current !== null) {

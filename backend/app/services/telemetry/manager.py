@@ -66,19 +66,19 @@ class TelemetryManager:
             await self.ws_hub.broadcast(self.current_frame)
             await asyncio.sleep(self._interval_seconds)
 
-    def start_recording(
+    async def start_recording_async(
         self,
         run_id: str | None,
         metadata: dict[str, Any] | None = None,
     ) -> RecordingStartResponse:
-        result = self.recorder.start(run_id=run_id, metadata=metadata)
+        result = await self.recorder.start(run_id=run_id, metadata=metadata)
         if result.run_id:
             self.simulator.set_recording(True, result.run_id)
             self.current_frame = self.simulator.next_frame()
         return result
 
-    def stop_recording(self) -> RecordingStopResponse:
-        result = self.recorder.stop()
+    async def stop_recording_async(self) -> RecordingStopResponse:
+        result = await self.recorder.stop()
         self.simulator.set_recording(False)
         return result
 

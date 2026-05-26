@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import build_api_router
 from app.core.config import settings
 from app.core.state import build_app_state
+from app.db.session import dispose_engine
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -16,12 +17,18 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app_state = build_app_state()
+    app_state = await build_app_state()
     app.state.app_state = app_state
     await app_state.telemetry.start()
-    logger.info("Telemetry stream started at %.1f Hz (mode=%s)", settings.sample_hz, settings.telemetry_mode)
+    logger.info(
+        "Telemetry stream started at %.1f Hz (mode=%s, storage=%s)",
+        settings.sample_hz,
+        settings.telemetry_mode,
+        settings.storage_backend,
+    )
     yield
     await app_state.telemetry.stop()
+    await dispose_engine(app_state.engine)
     logger.info("Telemetry stream stopped")
 
 

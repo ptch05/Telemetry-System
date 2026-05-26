@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
 from uuid import uuid4
 
+from app.db.repository import RunRepository
 from app.schemas import (
     RecordingStartResponse,
     RecordingStatusResponse,
@@ -15,23 +16,35 @@ from app.schemas import (
     RunSummary,
     TelemetryFrame,
 )
+from app.services.storage.base import RunStorageBackend
 from app.utils.run_id import resolve_run_paths, validate_run_id
 
 METADATA_FLUSH_INTERVAL = 50
 
 
 class RunRecorder:
-    """JSONL run recorder with per-run metadata files."""
+    """Records telemetry to local temp files, then finalizes to storage + PostgreSQL."""
 
-    def __init__(self, recording_dir: Path, sample_hz: float = 10.0) -> None:
-        self.recording_dir = recording_dir
-        self.recording_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(
+        self,
+        active_dir: Path,
+        sample_hz: float,
+        storage: RunStorageBackend,
+        repository: RunRepository,
+        storage_backend_name: str = "local",
+    ) -> None:
+        self.active_dir = active_dir
+        self.active_dir.mkdir(parents=True, exist_ok=True)
         self.sample_hz = sample_hz
+        self.storage = storage
+        self.repository = repository
+        self.storage_backend_name = storage_backend_name
         self._file: TextIO | None = None
         self.run_id: str | None = None
         self.metadata: dict[str, Any] = {}
         self.frame_count = 0
         self._meta_path: Path | None = None
+        self._jsonl_path: Path | None = None
 
     @property
     def is_recording(self) -> bool:
@@ -56,7 +69,7 @@ class RunRecorder:
             payload.update(extra)
         self._meta_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-    def start(
+    async def start(
         self,
         run_id: str | None = None,
         metadata: dict[str, Any] | None = None,
@@ -70,22 +83,36 @@ class RunRecorder:
 
         proposed = run_id or f"RUN-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}-{uuid4().hex[:6].upper()}"
         safe_id = validate_run_id(proposed)
-        jsonl_path, meta_path = resolve_run_paths(self.recording_dir, safe_id)
+        jsonl_path, meta_path = resolve_run_paths(self.active_dir, safe_id)
 
         self.run_id = safe_id
         self.metadata = metadata or {}
-        self.metadata["started_at"] = datetime.now(UTC).isoformat()
+        started_at = datetime.now(UTC)
+        self.metadata["started_at"] = started_at.isoformat()
         self.frame_count = 0
         self._meta_path = meta_path
+        self._jsonl_path = jsonl_path
         self._write_metadata()
         self._file = jsonl_path.open("a", encoding="utf-8")
+
+        extra = {k: v for k, v in self.metadata.items() if k not in {"started_at", "ended_at"}}
+        await self.repository.upsert_recording(
+            run_id=safe_id,
+            driver=self.metadata.get("driver"),
+            event_type=self.metadata.get("event_type"),
+            notes=self.metadata.get("notes"),
+            started_at=started_at,
+            sample_hz=self.sample_hz,
+            extra_metadata=extra,
+        )
+
         return RecordingStartResponse(
             recording=True,
             run_id=self.run_id,
             path=str(jsonl_path),
         )
 
-    def stop(self) -> RecordingStopResponse:
+    async def stop(self) -> RecordingStopResponse:
         if not self.is_recording:
             return RecordingStopResponse(
                 recording=False,
@@ -95,15 +122,43 @@ class RunRecorder:
             )
 
         run_id = self.run_id
-        self.metadata["ended_at"] = datetime.now(UTC).isoformat()
+        assert run_id is not None
+        assert self._jsonl_path is not None
+        assert self._meta_path is not None
+
+        ended_at = datetime.now(UTC)
+        self.metadata["ended_at"] = ended_at.isoformat()
         self._write_metadata()
         if self._file is not None:
             self._file.close()
         self._file = None
         count = self.frame_count
+
+        artifacts = await self.storage.save_completed_run(run_id, self._jsonl_path, self._meta_path)
+        extra = {k: v for k, v in self.metadata.items() if k not in {"started_at", "ended_at"}}
+        started_at_raw = self.metadata.get("started_at")
+        started_at = datetime.fromisoformat(started_at_raw) if started_at_raw else None
+
+        await self.repository.upsert_completed(
+            run_id=run_id,
+            driver=self.metadata.get("driver"),
+            event_type=self.metadata.get("event_type"),
+            notes=self.metadata.get("notes"),
+            started_at=started_at,
+            ended_at=ended_at,
+            sample_hz=self.sample_hz,
+            frame_count=count,
+            size_bytes=artifacts.size_bytes,
+            storage_backend=self.storage_backend_name,
+            jsonl_uri=artifacts.jsonl_uri,
+            metadata_uri=artifacts.metadata_uri,
+            extra_metadata=extra,
+        )
+
         self.frame_count = 0
         self.run_id = None
         self._meta_path = None
+        self._jsonl_path = None
         return RecordingStopResponse(recording=False, run_id=run_id, frame_count=count)
 
     def write(self, frame: TelemetryFrame) -> None:
@@ -123,56 +178,21 @@ class RunRecorder:
             sample_hz=self.sample_hz,
         )
 
-    def list_runs(self) -> list[RunSummary]:
-        runs: list[RunSummary] = []
-        for path in sorted(self.recording_dir.glob("*.jsonl"), reverse=True):
-            try:
-                validate_run_id(path.stem)
-            except ValueError:
-                continue
-            meta_path = path.with_suffix(".meta.json")
-            meta = self._read_json(meta_path)
-            runs.append(
-                RunSummary(
-                    run_id=path.stem,
-                    file=str(path),
-                    size_bytes=path.stat().st_size,
-                    metadata=meta,
-                )
-            )
-        return runs
+    async def list_runs(self) -> list[RunSummary]:
+        return await self.repository.list_runs()
 
-    def get_run(self, run_id: str) -> RunDetail | None:
-        jsonl_path, meta_path = resolve_run_paths(self.recording_dir, run_id)
-        if not jsonl_path.exists():
-            return None
-        meta = self._read_json(meta_path)
-        frame_count = meta.get("frame_count")
-        if frame_count is None:
-            frame_count = sum(1 for line in jsonl_path.open(encoding="utf-8") if line.strip())
-        return RunDetail(
-            run_id=run_id,
-            file=str(jsonl_path),
-            size_bytes=jsonl_path.stat().st_size,
-            frame_count=int(frame_count),
-            metadata=meta,
-        )
+    async def get_run(self, run_id: str) -> RunDetail | None:
+        validate_run_id(run_id)
+        return await self.repository.get_run(run_id)
 
-    def iter_frames(self, run_id: str) -> Iterator[TelemetryFrame]:
-        jsonl_path, _ = resolve_run_paths(self.recording_dir, run_id)
-        if not jsonl_path.exists():
-            raise FileNotFoundError(run_id)
-        with jsonl_path.open(encoding="utf-8") as handle:
-            for line in handle:
-                line = line.strip()
-                if line:
-                    yield TelemetryFrame.model_validate_json(line)
+    async def aiter_frames(self, run_id: str) -> AsyncIterator[TelemetryFrame]:
+        validate_run_id(run_id)
+        data = await self.storage.download_artifact(run_id, "jsonl")
+        for line in data.decode().splitlines():
+            line = line.strip()
+            if line:
+                yield TelemetryFrame.model_validate_json(line)
 
-    @staticmethod
-    def _read_json(path: Path) -> dict[str, Any]:
-        if not path.exists():
-            return {}
-        try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            return {}
+    async def download_artifact(self, run_id: str, artifact: str) -> bytes:
+        validate_run_id(run_id)
+        return await self.storage.download_artifact(run_id, artifact)

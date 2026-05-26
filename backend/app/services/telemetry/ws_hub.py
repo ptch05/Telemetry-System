@@ -27,8 +27,8 @@ class WebSocketHub:
         try:
             await websocket.send_text(snapshot.model_dump_json())
         except Exception:
+            logger.debug("Client disconnected before initial telemetry snapshot")
             await self.disconnect(websocket)
-            raise
 
     async def disconnect(self, websocket: WebSocket) -> None:
         async with self._lock:

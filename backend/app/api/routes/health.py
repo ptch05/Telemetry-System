@@ -21,5 +21,6 @@ def health(state: AppState = Depends(get_state)) -> HealthResponse:
         recording=recording.recording,
         recording_run_id=recording.run_id,
         run_data_dir=str(settings.run_data_dir.resolve()),
+        storage_backend=settings.storage_backend,
         uptime_seconds=round(state.telemetry.uptime_seconds, 2),
     )

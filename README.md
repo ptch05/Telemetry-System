@@ -252,21 +252,13 @@ make test
 
 ## Environment variables
 
-### Backend (`backend/.env`)
+Copy the template and edit your values:
 
-| Variable         | Default                     | Description           |
-| ---------------- | --------------------------- | --------------------- |
-| `TELEMETRY_MODE` | `mock`                      | Telemetry source      |
-| `SAMPLE_HZ`      | `10`                        | Frames per second     |
-| `RUN_DATA_DIR`   | `./data/runs`               | Run storage directory |
-| `CORS_ORIGINS`   | `http://localhost:5173,...` | Allowed origins       |
+```bash
+cp .env.example .env
+```
 
-### Frontend (`frontend/.env`)
-
-| Variable                | Default                            | Description      |
-| ----------------------- | ---------------------------------- | ---------------- |
-| `VITE_TELEMETRY_WS_URL` | `ws://localhost:8000/ws/telemetry` | WebSocket URL    |
-| `VITE_BACKEND_HTTP_URL` | `http://localhost:8000`            | Backend HTTP URL |
+Single file at the repo root (`.env`) — backend and frontend both read it.
 
 ---
 

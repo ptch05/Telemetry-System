@@ -56,4 +56,5 @@ class HealthResponse(BaseModel):
     recording: bool
     recording_run_id: str | None = None
     run_data_dir: str
+    storage_backend: str
     uptime_seconds: float

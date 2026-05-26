@@ -13,13 +13,14 @@ import {
 import { getConnectionDisplay, isConnectingStatus } from "@/lib/telemetry";
 import { config } from "@/lib/config";
 import type { DashboardPhase } from "@/features/dashboard/hooks/useDashboard";
-import type { ConnectionState } from "@/lib/types";
+import type { ConnectionState, HealthStatus } from "@/lib/types";
 
 interface EmptyStateProps {
   phase: DashboardPhase;
   status: ConnectionState;
   error: string | null;
   isReplay: boolean;
+  health: HealthStatus | null;
   onReturnToLive?: () => void;
 }
 
@@ -28,22 +29,32 @@ export function EmptyState({
   status,
   error,
   isReplay,
+  health,
   onReturnToLive,
 }: EmptyStateProps) {
   const connection = getConnectionDisplay(status);
   const spinning = isConnectingStatus(status);
+  const backendUp = health?.status === "ok";
 
   const title =
-    phase === "connecting"
-      ? "Connecting…"
-      : status === "reconnecting"
-        ? "Reconnecting to telemetry"
-        : "Waiting for telemetry";
+    status === "replay_complete"
+      ? "Replay finished"
+      : phase === "connecting"
+        ? "Connecting to live telemetry"
+        : status === "reconnecting"
+          ? "Reconnecting to telemetry"
+          : backendUp
+            ? "Connecting to live telemetry"
+            : "Waiting for telemetry";
 
   const description =
-    phase === "waiting"
-      ? `Start the backend on port 8000. Connects to ${config.telemetryWsUrl}.`
-      : undefined;
+    status === "replay_complete"
+      ? "Press Return to Live to resume the mock stream."
+      : phase === "waiting" && !backendUp
+        ? `Start the backend on port 8000. Connects to ${config.telemetryWsUrl}.`
+        : phase === "waiting" && backendUp
+          ? `Backend is up. Opening ${config.telemetryWsUrl}…`
+          : undefined;
 
   return (
     <div className="page-shell relative flex min-h-screen items-center justify-center p-6">
@@ -76,7 +87,7 @@ export function EmptyState({
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : null}
-          {isReplay && onReturnToLive ? (
+          {(isReplay || status === "replay_complete") && onReturnToLive ? (
             <Button
               variant="outline"
               className="rounded-full"
